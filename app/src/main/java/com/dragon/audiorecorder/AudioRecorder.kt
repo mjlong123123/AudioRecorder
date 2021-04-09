@@ -90,8 +90,16 @@ class AudioRecorder {
                     val increase =
                         (info.presentationTimeUs - lastSendAudioTime) * audioSampleRate / 1000 / 1000
                     buffer.position(info.offset)
-                    buffer.get(bufferArray, 0, info.size)
-                    audioRtpWrapper?.sendData(bufferArray, info.size, 97, true, increase.toInt())
+                    buffer.get(bufferArray, 4, info.size)
+                    auHeaderLength.apply {
+                        bufferArray[0] = this[0]
+                        bufferArray[1] = this[1]
+                    }
+                    auHeader(info.size).apply {
+                        bufferArray[2] = this[0]
+                        bufferArray[3] = this[1]
+                    }
+                    audioRtpWrapper?.sendData(bufferArray, info.size + 4, 97, true, increase.toInt())
                     lastSendAudioTime = info.presentationTimeUs
                     codec.releaseOutputBuffer(index, false)
                 } catch (e: Exception) {
