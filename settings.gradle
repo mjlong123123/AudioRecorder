@@ -1,0 +1,4 @@
+include ':app', ':RtpLib'
+rootProject.name = "AudioRecorder"
+
+project(':RtpLib').projectDir = new File('ext/RtpLib')
