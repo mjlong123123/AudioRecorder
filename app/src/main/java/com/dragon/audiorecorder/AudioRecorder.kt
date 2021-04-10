@@ -19,11 +19,11 @@ class AudioRecorder {
     private val audioChannelCount = 1;
     private val audioSampleRate = 44100;
     private val audioMinBufferSize =
-        AudioRecord.getMinBufferSize(
-            audioSampleRate,
-            if (audioChannelCount == 1) AudioFormat.CHANNEL_IN_MONO else AudioFormat.CHANNEL_IN_STEREO,
-            AudioFormat.ENCODING_PCM_16BIT
-        );
+            AudioRecord.getMinBufferSize(
+                    audioSampleRate,
+                    if (audioChannelCount == 1) AudioFormat.CHANNEL_IN_MONO else AudioFormat.CHANNEL_IN_STEREO,
+                    AudioFormat.ENCODING_PCM_16BIT
+            );
     private val audioMaxBufferSize = audioMinBufferSize * 3;
     private val audioBuffer = ByteArray(audioMaxBufferSize)
     private var lastSendAudioTime: Long = 0
@@ -59,28 +59,28 @@ class AudioRecorder {
         _isRecording.value = false
     }
 
-    fun start(ip: String) {
+    fun start(ip: String, hasAuHeader:Boolean) {
         _isRecording.value ?: return
         if (_isRecording.value!!) {
             return
         }
         _isRecording.value = true
         val mediaFormat = MediaFormat.createAudioFormat(
-            MediaFormat.MIMETYPE_AUDIO_AAC,
-            audioSampleRate,
-            audioChannelCount
+                MediaFormat.MIMETYPE_AUDIO_AAC,
+                audioSampleRate,
+                audioChannelCount
         )
         mediaFormat.setInteger(MediaFormat.KEY_BIT_RATE, audioBitRate)
         mediaFormat.setInteger(
-            MediaFormat.KEY_AAC_PROFILE,
-            MediaCodecInfo.CodecProfileLevel.AACObjectLC
+                MediaFormat.KEY_AAC_PROFILE,
+                MediaCodecInfo.CodecProfileLevel.AACObjectLC
         )
         mediaFormat.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, audioMaxBufferSize)
         audioCodec = object : AudioEncodeCodec(mediaFormat) {
             override fun onOutputBufferAvailable(
-                codec: MediaCodec,
-                index: Int,
-                info: MediaCodec.BufferInfo
+                    codec: MediaCodec,
+                    index: Int,
+                    info: MediaCodec.BufferInfo
             ) {
                 try {
                     val buffer = codec.getOutputBuffer(index) ?: return
@@ -88,18 +88,24 @@ class AudioRecorder {
                         lastSendAudioTime = info.presentationTimeUs;
                     }
                     val increase =
-                        (info.presentationTimeUs - lastSendAudioTime) * audioSampleRate / 1000 / 1000
-                    buffer.position(info.offset)
-                    buffer.get(bufferArray, 4, info.size)
-                    auHeaderLength.apply {
-                        bufferArray[0] = this[0]
-                        bufferArray[1] = this[1]
+                            (info.presentationTimeUs - lastSendAudioTime) * audioSampleRate / 1000 / 1000
+                    if (hasAuHeader) {
+                        buffer.position(info.offset)
+                        buffer.get(bufferArray, 4, info.size)
+                        auHeaderLength.apply {
+                            bufferArray[0] = this[0]
+                            bufferArray[1] = this[1]
+                        }
+                        auHeader(info.size).apply {
+                            bufferArray[2] = this[0]
+                            bufferArray[3] = this[1]
+                        }
+                        audioRtpWrapper?.sendData(bufferArray, info.size + 4, 97, true, increase.toInt())
+                    } else {
+                        buffer.position(info.offset)
+                        buffer.get(bufferArray, 0, info.size)
+                        audioRtpWrapper?.sendData(bufferArray, info.size, 97, true, increase.toInt())
                     }
-                    auHeader(info.size).apply {
-                        bufferArray[2] = this[0]
-                        bufferArray[3] = this[1]
-                    }
-                    audioRtpWrapper?.sendData(bufferArray, info.size + 4, 97, true, increase.toInt())
                     lastSendAudioTime = info.presentationTimeUs
                     codec.releaseOutputBuffer(index, false)
                 } catch (e: Exception) {

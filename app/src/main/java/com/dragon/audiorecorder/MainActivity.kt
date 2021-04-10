@@ -44,7 +44,7 @@ class MainActivity : AppCompatActivity() {
                         preference.edit {
                             putString("ip", ip)
                         }
-                    recorder.start(ip)
+                    recorder.start(ip, binding.auHeaderCheckBox.isChecked)
                 }
             }
         }
